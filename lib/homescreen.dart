@@ -2,17 +2,25 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:fl_chart/fl_chart.dart'; // Import the chart package
 import 'package:judge_app_2/students.dart';
+import 'package:firebase_auth/firebase_auth.dart'; // Import Firebase Auth
+import 'package:judge_app_2/database.dart'; // Import your FirestoreService
 
 class Homescreen extends StatefulWidget {
-  const Homescreen({super.key});
+  final String username;
+
+  const Homescreen({required this.username});
 
   @override
   State<Homescreen> createState() => _HomescreenState();
 }
 
 class _HomescreenState extends State<Homescreen> {
+  final FirestoreService _fs = FirestoreService();
+
   @override
   Widget build(BuildContext context) {
+    final userId = FirebaseAuth.instance.currentUser?.uid;
+
     return Scaffold(
       body: Stack(
         children: [
@@ -29,7 +37,7 @@ class _HomescreenState extends State<Homescreen> {
                   alignment: Alignment.topRight,
                   margin: const EdgeInsets.only(right: 20.0, top: 20.0),
                   child: Text(
-                    "Hi, Name",
+                    "Hi, ${widget.username}",
                     style: GoogleFonts.poppins(
                       fontSize: 30.0,
                       fontWeight: FontWeight.w600,
@@ -56,17 +64,52 @@ class _HomescreenState extends State<Homescreen> {
 
                 // Category Cards with Icons
                 Expanded(
-                  child: GridView.count(
-                    crossAxisCount: 2,
-                    padding: const EdgeInsets.all(16.0),
-                    crossAxisSpacing: 16.0,
-                    mainAxisSpacing: 16.0,
-                    children: [
-                      buildCardWithIcon(context, 'Total Category', Icons.group, Colors.amber[300]),
-                      buildCardWithIcon(context, 'Mini Category', Icons.child_care, Colors.amber[400]),
-                      buildCardWithIcon(context, 'Little Category', Icons.school, Colors.amber[600]),
-                      buildCardWithIcon(context, 'Teen Category', Icons.emoji_people, Colors.amber[800]),
-                    ],
+                  child: StreamBuilder<List<Map<String, dynamic>>>(
+                    stream: userId != null
+                        ? _fs.getCategories_2(userId)
+                        : Stream.value([]),
+                    builder: (context, snapshot) {
+                      if (snapshot.connectionState == ConnectionState.waiting) {
+                        return Center(child: CircularProgressIndicator());
+                      }
+
+                      if (snapshot.hasError) {
+                        return Center(child: Text('Error: ${snapshot.error}'));
+                      }
+
+                      final categories = snapshot.data ?? [];
+
+                      if (categories.isEmpty) {
+                        return Center(child: Text('No categories available.'));
+                      }
+
+                      return GridView.builder(
+                        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 2,
+                          crossAxisSpacing: 16.0,
+                          mainAxisSpacing: 16.0,
+                        ),
+                        padding: const EdgeInsets.all(16.0),
+                        itemCount: categories.length,
+                        itemBuilder: (context, index) {
+                          final category = categories[index];
+
+                          if (category['name'] == null) {
+                            print(category);
+                            return Center(
+                                child: Text('Category data is incomplete.'));
+                          }
+
+                          return buildCardWithIcon(
+                            context,
+                            category['name'],
+                            Icons.category,
+                            Colors.amber[(index + 1) * 100],
+                            userId!, // Ensure userId is not null before this point
+                          );
+                        },
+                      );
+                    },
                   ),
                 ),
 
@@ -81,7 +124,6 @@ class _HomescreenState extends State<Homescreen> {
                         maxY: 20, // Maximum Y value for the bars
                         barTouchData: BarTouchData(
                           touchTooltipData: BarTouchTooltipData(
-                            // tooltipBgColor: Colors.amberAccent.withOpacity(0.8),
                             getTooltipItem: (group, groupIndex, rod, rodIndex) {
                               return BarTooltipItem(
                                 '${rod.toY}',
@@ -102,13 +144,17 @@ class _HomescreenState extends State<Homescreen> {
                               getTitlesWidget: (value, _) {
                                 switch (value.toInt()) {
                                   case 1:
-                                    return const Text("Total", style: TextStyle(color: Colors.black));
+                                    return const Text("Total",
+                                        style: TextStyle(color: Colors.black));
                                   case 2:
-                                    return const Text("Mini", style: TextStyle(color: Colors.black));
+                                    return const Text("Mini",
+                                        style: TextStyle(color: Colors.black));
                                   case 3:
-                                    return const Text("Little", style: TextStyle(color: Colors.black));
+                                    return const Text("Little",
+                                        style: TextStyle(color: Colors.black));
                                   case 4:
-                                    return const Text("Teen", style: TextStyle(color: Colors.black));
+                                    return const Text("Teen",
+                                        style: TextStyle(color: Colors.black));
                                   default:
                                     return const Text("");
                                 }
@@ -119,7 +165,9 @@ class _HomescreenState extends State<Homescreen> {
                             sideTitles: SideTitles(
                               showTitles: true,
                               getTitlesWidget: (value, _) {
-                                return Text('${value.toInt()}', style: const TextStyle(color: Colors.black54));
+                                return Text('${value.toInt()}',
+                                    style:
+                                        const TextStyle(color: Colors.black54));
                               },
                               reservedSize: 30,
                             ),
@@ -203,12 +251,23 @@ class _HomescreenState extends State<Homescreen> {
   }
 
   // Method to build a card with an icon
-  Widget buildCardWithIcon(BuildContext context, String title, IconData icon, Color? color) {
+  Widget buildCardWithIcon(
+    BuildContext context,
+    String name,
+    IconData icon,
+    Color? color,
+    String userId, // Include userId here
+  ) {
     return GestureDetector(
       onTap: () {
+        // Pass the userId and categoryId to the Students page
         Navigator.push(
           context,
-          MaterialPageRoute(builder: (context) => const Students()),
+          MaterialPageRoute(
+            builder: (context) => Students(
+                userId: userId,
+                name: name), // Pass the correct values here
+          ),
         );
       },
       child: Card(
@@ -234,7 +293,7 @@ class _HomescreenState extends State<Homescreen> {
             const SizedBox(height: 10),
             // Text for the category
             Text(
-              title,
+              name,
               style: GoogleFonts.poppins(
                 fontSize: 18.0,
                 fontWeight: FontWeight.w500,
