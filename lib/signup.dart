@@ -1,3 +1,4 @@
+import 'dart:async'; // Import this for Timer
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -19,20 +20,36 @@ class _SignUpScreenState extends State<SignUpScreen> {
       TextEditingController();
   final _formKey = GlobalKey<FormState>();
   final FirebaseAuth _auth = FirebaseAuth.instance;
+  final FirestoreService _fs = FirestoreService();
+
   bool _passwordVisible = false;
-  FirestoreService _fs = FirestoreService();
+  bool _isLoading = false; // State variable for loading
+  String _loadingText = ''; // State variable for loading text
+  Timer? _timer; // Timer to update loading text
 
   String getUsernameFromEmail(String email) {
     if (email.contains('@')) {
       return email.split('@').first;
     } else {
-      throw FormatException("Invalid email format");
+      throw const FormatException("Invalid email format");
     }
   }
 
   // Function to handle user registration
   Future<void> _registerUser() async {
     if (_formKey.currentState!.validate()) {
+      setState(() {
+        _isLoading = true; // Show loader
+        _loadingText = 'Creating your account...'; // Initial loading text
+      });
+
+      // Start timer to update loading text every 5 seconds
+      _timer = Timer.periodic(const Duration(seconds: 5), (timer) {
+        setState(() {
+          _loadingText = 'Still creating your account...'; // Update text
+        });
+      });
+
       try {
         String username = getUsernameFromEmail(_emailController.text.trim());
 
@@ -42,23 +59,31 @@ class _SignUpScreenState extends State<SignUpScreen> {
           password: _passwordController.text.trim(),
         );
 
-        //create categories
-        String toto_id =
-            await _fs.addCategory(userCredential.user!.uid, "Toto", 1);
-        String mini_id =
-            await _fs.addCategory(userCredential.user!.uid, "Mini", 2);
-        String little_id =
-            await _fs.addCategory(userCredential.user!.uid, "Little", 3);
-        String teen_id =
-            await _fs.addCategory(userCredential.user!.uid, "Teen", 4);
+        // Create categories in parallel
+        List<String> categoryIds = await Future.wait([
+          _fs.addCategory(userCredential.user!.uid, "Toto", 1),
+          _fs.addCategory(userCredential.user!.uid, "Mini", 2),
+          _fs.addCategory(userCredential.user!.uid, "Little", 3),
+          _fs.addCategory(userCredential.user!.uid, "Teen", 4),
+        ]);
 
-        //add student
-        for (var i = 1; i < 101; i++) {
-          await _fs.addStudent(userCredential.user!.uid, toto_id, i);
-          await _fs.addStudent(userCredential.user!.uid, mini_id, i);
-          await _fs.addStudent(userCredential.user!.uid, little_id, i);
-          await _fs.addStudent(userCredential.user!.uid, teen_id, i);
+        // Add students in parallel for each category
+        List<Future<void>> addStudentFutures = [];
+        for (var categoryId in categoryIds) {
+          for (var i = 1; i < 101; i++) {
+            addStudentFutures
+                .add(_fs.addStudent(userCredential.user!.uid, categoryId, i));
+          }
         }
+        // Wait for all student addition futures to complete
+        await Future.wait(addStudentFutures);
+
+        // Stop the timer and reset loading state
+        _timer?.cancel();
+        setState(() {
+          _isLoading = false; // Hide loader
+          _loadingText = ''; // Clear loading text
+        });
 
         print('User registered: ${userCredential.user!.email}');
         Navigator.pushReplacement(
@@ -67,6 +92,11 @@ class _SignUpScreenState extends State<SignUpScreen> {
               builder: (context) => Homescreen(username: username)),
         );
       } catch (e) {
+        _timer?.cancel(); // Stop the timer on error
+        setState(() {
+          _isLoading = false; // Hide loader
+          _loadingText = ''; // Clear loading text
+        });
         print('Error: $e');
         _showErrorDialog(e.toString());
       }
@@ -196,7 +226,9 @@ class _SignUpScreenState extends State<SignUpScreen> {
 
                 // Sign-Up Button
                 ElevatedButton(
-                  onPressed: _registerUser,
+                  onPressed: _isLoading
+                      ? null
+                      : _registerUser, // Disable button when loading
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.amber,
                     padding: const EdgeInsets.symmetric(
@@ -208,7 +240,9 @@ class _SignUpScreenState extends State<SignUpScreen> {
                     elevation: 5,
                   ),
                   child: Text(
-                    'SIGN UP',
+                    _isLoading
+                        ? 'Loading...'
+                        : 'SIGN UP', // Change button text when loading
                     style: GoogleFonts.poppins(
                       fontSize: 20.0,
                       fontWeight: FontWeight.w600,
@@ -217,6 +251,19 @@ class _SignUpScreenState extends State<SignUpScreen> {
                   ),
                 ),
                 const SizedBox(height: 20.0),
+
+                // Show loading text if loading
+                if (_isLoading)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 10.0),
+                    child: Text(
+                      _loadingText,
+                      style: GoogleFonts.poppins(
+                        fontSize: 16.0,
+                        color: Colors.amber,
+                      ),
+                    ),
+                  ),
 
                 // Link to Sign-In
                 GestureDetector(
@@ -253,41 +300,43 @@ class _SignUpScreenState extends State<SignUpScreen> {
   }) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 10.0),
-      child: Container(
-        decoration: BoxDecoration(
-          border: Border.all(color: Colors.black, width: 1.0),
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.only(left: 20.0),
-          child: TextFormField(
-            controller: controller,
-            obscureText: isPassword && !_passwordVisible,
-            style: GoogleFonts.poppins(fontSize: 20.0, color: Colors.grey[600]),
-            decoration: InputDecoration(
-              border: InputBorder.none,
-              labelText: label,
-              labelStyle: TextStyle(color: Colors.grey[600]),
-              suffixIcon: isPassword
-                  ? IconButton(
-                      icon: Icon(
-                        _passwordVisible
-                            ? Icons.visibility
-                            : Icons.visibility_off,
-                        color: Colors.grey,
-                      ),
-                      onPressed: () {
-                        setState(() {
-                          _passwordVisible = !_passwordVisible;
-                        });
-                      },
-                    )
-                  : null,
-            ),
-            validator: validator,
+      child: TextFormField(
+        controller: controller,
+        validator: validator,
+        obscureText: isPassword ? !_passwordVisible : false,
+        decoration: InputDecoration(
+          labelText: label,
+          labelStyle: const TextStyle(color: Colors.amber),
+          enabledBorder: const UnderlineInputBorder(
+            borderSide: BorderSide(color: Colors.amber),
           ),
+          focusedBorder: const UnderlineInputBorder(
+            borderSide: BorderSide(color: Colors.amber),
+          ),
+          suffixIcon: isPassword
+              ? IconButton(
+                  icon: Icon(
+                    _passwordVisible ? Icons.visibility : Icons.visibility_off,
+                    color: Colors.amber,
+                  ),
+                  onPressed: () {
+                    setState(() {
+                      _passwordVisible = !_passwordVisible;
+                    });
+                  },
+                )
+              : null,
         ),
       ),
     );
+  }
+
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
+    _confirmPasswordController.dispose();
+    _timer?.cancel(); // Cancel the timer when disposing
+    super.dispose();
   }
 }

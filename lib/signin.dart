@@ -17,15 +17,15 @@ class _SignInScreenState extends State<SignInScreen> {
   final _formKey = GlobalKey<FormState>();
   bool _isLoading = false;
   String? _errorMessage;
-  
+  bool _passwordVisible = false;
+
   String getUsernameFromEmail(String email) {
     if (email.contains('@')) {
       return email.split('@').first;
     } else {
-      throw FormatException("Invalid email format");
+      throw const FormatException("Invalid email format");
     }
   }
-
 
   // Function to handle sign-in logic
   void _validateAndSignIn() async {
@@ -49,7 +49,10 @@ class _SignInScreenState extends State<SignInScreen> {
         // Navigate to Homescreen on success
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (context) => Homescreen(username: username,)),
+          MaterialPageRoute(
+              builder: (context) => Homescreen(
+                    username: username,
+                  )),
         );
       } else {
         // Display error message
@@ -91,6 +94,7 @@ class _SignInScreenState extends State<SignInScreen> {
                   _buildTextField(
                     controller: _emailController,
                     label: 'Email',
+                    isPassword: false,
                     validator: (value) {
                       if (value == null || value.isEmpty) {
                         return 'Please enter your email';
@@ -105,6 +109,7 @@ class _SignInScreenState extends State<SignInScreen> {
                     controller: _passwordController,
                     label: 'Password',
                     obscureText: true,
+                    isPassword: true,
                     validator: (value) {
                       if (value == null || value.isEmpty) {
                         return 'Please enter your password';
@@ -119,14 +124,16 @@ class _SignInScreenState extends State<SignInScreen> {
                   if (_errorMessage != null) ...[
                     Text(
                       _errorMessage!,
-                      style: TextStyle(color: Colors.red, fontSize: 16.0),
+                      style: const TextStyle(color: Colors.red, fontSize: 16.0),
                     ),
                     const SizedBox(height: 10.0),
                   ],
 
                   // Sign-In Button
                   _isLoading
-                      ? const CircularProgressIndicator()
+                      ? const CircularProgressIndicator(
+                          valueColor:
+                              AlwaysStoppedAnimation<Color>(Colors.amber))
                       : ElevatedButton(
                           onPressed: _validateAndSignIn,
                           style: ElevatedButton.styleFrom(
@@ -225,32 +232,46 @@ class _SignInScreenState extends State<SignInScreen> {
     required TextEditingController controller,
     required String label,
     bool obscureText = false,
+    required bool isPassword,
     String? Function(String?)? validator,
   }) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 10.0),
-      child: Container(
-        decoration: BoxDecoration(
-          color: Colors.transparent,
-          border: Border.all(color: Colors.black, width: 1.0),
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.only(left: 20.0),
-          child: TextFormField(
-            controller: controller,
-            obscureText: obscureText,
-            style: GoogleFonts.poppins(
-              fontSize: 20.0,
-              color: Colors.grey[600],
-            ),
-            decoration: InputDecoration(
-              border: InputBorder.none,
-              labelText: label,
-              labelStyle: TextStyle(color: Colors.grey[600]),
-            ),
-            validator: validator,
+      child: Padding(
+        padding: const EdgeInsets.only(left: 20.0),
+        child: TextFormField(
+          controller: controller,
+          obscureText: isPassword ? !_passwordVisible : false,
+          style: GoogleFonts.poppins(
+            fontSize: 20.0,
+            color: Colors.grey[600],
           ),
+          decoration: InputDecoration(
+            labelText: label,
+            labelStyle: const TextStyle(color: Colors.amber),
+            enabledBorder: const UnderlineInputBorder(
+              borderSide: BorderSide(color: Colors.amber),
+            ),
+            focusedBorder: const UnderlineInputBorder(
+              borderSide: BorderSide(color: Colors.amber),
+            ),
+            suffixIcon: isPassword
+                ? IconButton(
+                    icon: Icon(
+                      _passwordVisible
+                          ? Icons.visibility
+                          : Icons.visibility_off,
+                      color: Colors.amber,
+                    ),
+                    onPressed: () {
+                      setState(() {
+                        _passwordVisible = !_passwordVisible;
+                      });
+                    },
+                  )
+                : null,
+          ),
+          validator: validator,
         ),
       ),
     );

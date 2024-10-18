@@ -185,7 +185,7 @@ class _AwardsState extends State<Awards> {
       print('Scores updated for student ${widget.studentNumber}: $scores');
     } catch (e) {
       print('Error updating scores: $e');
-      throw e; // Rethrow the exception for handling
+      rethrow; // Rethrow the exception for handling
     }
   }
 
@@ -197,7 +197,7 @@ class _AwardsState extends State<Awards> {
         backgroundColor: Colors.amber[50],
         elevation: 0,
         title: Text(
-          'Awards for Student ${widget.studentNumber}',
+          'Awards for Contestant ${widget.studentNumber}',
           style: GoogleFonts.poppins(
             fontSize: 24,
             fontWeight: FontWeight.w400,
