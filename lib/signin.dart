@@ -2,7 +2,6 @@ import 'package:judge_app_2/user_models.dart';
 import 'package:judge_app_2/signup.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:judge_app_2/homescreen.dart';
 
 class SignInScreen extends StatefulWidget {
   const SignInScreen({super.key});
@@ -45,22 +44,11 @@ class _SignInScreenState extends State<SignInScreen> {
         _isLoading = false;
       });
 
-      if (result == null) {
-        // Navigate to Homescreen on success
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-              builder: (context) => Homescreen(
-                    username: username,
-                  )),
-        );
-      } else {
-        // Display error message
-        setState(() {
-          _errorMessage = result;
-        });
-      }
-    }
+      // Display error message
+      setState(() {
+        _errorMessage = result;
+      });
+        }
   }
 
   @override

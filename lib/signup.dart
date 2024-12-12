@@ -35,19 +35,37 @@ class _SignUpScreenState extends State<SignUpScreen> {
     }
   }
 
+    Future<void> _addStudents(
+      String userId, String categoryId, int start, int end) async {
+    for (var i = start; i <= end; i++) {
+      await _fs.addStudent(userId, categoryId, i);
+    }
+  }
+  
+  void _handleFirebaseAuthError(FirebaseAuthException e) {
+    String message;
+    switch (e.code) {
+      case 'email-already-in-use':
+        message = 'This email is already registered.';
+        break;
+      case 'weak-password':
+        message = 'The password is too weak.';
+        break;
+      case 'invalid-email':
+        message = 'The email address is not valid.';
+        break;
+      default:
+        message = 'An unknown error occurred. Please try again.';
+    }
+    _showErrorDialog(message);
+  }
+
   // Function to handle user registration
   Future<void> _registerUser() async {
     if (_formKey.currentState!.validate()) {
       setState(() {
         _isLoading = true; // Show loader
         _loadingText = 'Creating your account...'; // Initial loading text
-      });
-
-      // Start timer to update loading text every 5 seconds
-      _timer = Timer.periodic(const Duration(seconds: 5), (timer) {
-        setState(() {
-          _loadingText = 'Still creating your account...'; // Update text
-        });
       });
 
       try {
@@ -59,7 +77,6 @@ class _SignUpScreenState extends State<SignUpScreen> {
           password: _passwordController.text.trim(),
         );
 
-        // Create categories in parallel
         List<String> categoryIds = await Future.wait([
           _fs.addCategory(userCredential.user!.uid, "Toto", 1),
           _fs.addCategory(userCredential.user!.uid, "Mini", 2),
@@ -67,42 +84,38 @@ class _SignUpScreenState extends State<SignUpScreen> {
           _fs.addCategory(userCredential.user!.uid, "Teen", 4),
         ]);
 
-        // Add students in parallel for each category
-        List<Future<void>> addStudentFutures = [];
-        for (var categoryId in categoryIds) {
-          for (var i = 1; i < 101; i++) {
-            addStudentFutures
-                .add(_fs.addStudent(userCredential.user!.uid, categoryId, i));
-          }
-        }
-        // Wait for all student addition futures to complete
-        await Future.wait(addStudentFutures);
+        await Future.wait([
+          _addStudents(userCredential.user!.uid, categoryIds[0], 1, 13),
+          _addStudents(userCredential.user!.uid, categoryIds[1], 14, 52),
+          _addStudents(userCredential.user!.uid, categoryIds[2], 53, 83),
+          _addStudents(userCredential.user!.uid, categoryIds[3], 84, 91),
+        ]);
 
-        // Stop the timer and reset loading state
-        _timer?.cancel();
         setState(() {
           _isLoading = false; // Hide loader
           _loadingText = ''; // Clear loading text
         });
 
-        print('User registered: ${userCredential.user!.email}');
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
               builder: (context) => Homescreen(username: username)),
         );
-      } catch (e) {
-        _timer?.cancel(); // Stop the timer on error
+      } on FirebaseAuthException catch (e) {
         setState(() {
           _isLoading = false; // Hide loader
           _loadingText = ''; // Clear loading text
         });
-        print('Error: $e');
+        _handleFirebaseAuthError(e);
+      } catch (e) {
+        setState(() {
+          _isLoading = false; // Hide loader
+          _loadingText = ''; // Clear loading text
+        });
         _showErrorDialog(e.toString());
       }
     }
   }
-
   // Error dialog function
   void _showErrorDialog(String message) {
     showDialog(
@@ -200,9 +213,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                   validator: (value) {
                     if (value == null || value.isEmpty) {
                       return 'Please enter your password';
-                    } else if (value.length < 6) {
-                      return 'Password must be at least 6 characters long';
-                    }
+                    } 
                     return null;
                   },
                 ),
