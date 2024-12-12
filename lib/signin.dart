@@ -1,3 +1,4 @@
+import 'package:judge_app_2/homescreen.dart';
 import 'package:judge_app_2/user_models.dart';
 import 'package:judge_app_2/signup.dart';
 import 'package:flutter/material.dart';
@@ -39,6 +40,15 @@ class _SignInScreenState extends State<SignInScreen> {
       String username = getUsernameFromEmail(_emailController.text.trim());
 
       String? result = await AuthService().signIn(email, password);
+      
+      if (result == null) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) => Homescreen(username: username),
+          ),
+        );
+      }
 
       setState(() {
         _isLoading = false;
